@@ -1,1 +1,19 @@
-{}
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.4"}
+
+        ;; Google GenAI / Vertex SDK
+        com.google.genai/google-genai {:mvn/version "1.40.0"}
+
+        ;; schema
+        metosin/malli {:mvn/version "0.20.0"}
+
+        ;; data formats
+        cheshire/cheshire {:mvn/version "6.1.0"}
+
+        ;; system building
+        com.stuartsierra/component {:mvn/version "1.2.0"}}
+
+ :aliases {:test {:extra-paths ["test"]
+                  :main-opts ["-m" "kaocha.runner"]
+                  :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                               nubank/matcher-combinators {:mvn/version "3.10.0"}}}}}
