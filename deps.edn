@@ -16,4 +16,8 @@
  :aliases {:test {:extra-paths ["test"]
                   :main-opts ["-m" "kaocha.runner"]
                   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
-                               nubank/matcher-combinators {:mvn/version "3.10.0"}}}}}
+                               nubank/matcher-combinators {:mvn/version "3.10.0"}}}
+
+           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.13"}
+                          slipset/deps-deploy {:mvn/version "0.2.2"}}
+                   :ns-default build}}}
