@@ -54,8 +54,14 @@ callers that want to build `GenerateContentConfig` directly:
 Pass `:all-required? true` to strip `:optional` markers before the
 transform.
 
-## Tests
+## Tasks
+
+Tasks are managed with [mise](https://mise.jdx.dev/):
 
 ```
-clojure -M:test
+mise run test                           # run the test suite
+mise run jar                            # build a jar
+mise run install                        # install locally
+mise run release                        # clean + jar + publish to Clojars
+SNAPSHOT=foo mise run release           # snapshot release
 ```

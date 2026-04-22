@@ -1,0 +1,31 @@
+[tools]
+clojure = "latest"
+java = "temurin-25"
+
+[tasks.test]
+description = "Run tests"
+run = "clojure -M:test"
+
+[tasks.update-deps]
+description = "Check for outdated dependencies"
+run = "clojure -M:dev/outdated"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "clojure -T:build clean"
+
+[tasks.jar]
+description = "Build jar (set SNAPSHOT=true for snapshot build)"
+run = "clojure -T:build jar ${SNAPSHOT:+:snapshot $SNAPSHOT}"
+
+[tasks.publish]
+description = "Publish jar (set SNAPSHOT=true for snapshot build)"
+run = "clojure -T:build publish ${SNAPSHOT:+:snapshot $SNAPSHOT}"
+
+[tasks.release]
+description = "Clean, build jar, and publish"
+depends = ["clean", "jar", "publish"]
+
+[tasks.install]
+description = "Install jar locally (set SNAPSHOT=true for snapshot build)"
+run = "clojure -T:build install ${SNAPSHOT:+:snapshot $SNAPSHOT}"
