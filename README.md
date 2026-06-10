@@ -21,7 +21,7 @@ structured output.
   (component/start
    (vortex/create {:project "my-gcp-project"
                    :location "us-central1"
-                   :model "gemini-2.0-flash"
+                   :model "gemini-3.5-flash"
                    :system-instruction "Extract structured data from the input."
                    :response-schema [:map
                                      [:name :string]
@@ -58,7 +58,7 @@ The call returns `{:reply <string> :history <vec>}`. Feed the returned
   (component/start
     (vortex/create {:project "my-gcp-project"
        :location "us-central1"
-       :model "gemini-2.5-flash"
+       :model "gemini-3.5-flash"
        :system-instruction "Help the user answer questions about the product"})))
 
 (vortex/send-message chat {:context "## Product info: size 20cm by 20cm, color black"
