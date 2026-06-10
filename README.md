@@ -5,9 +5,11 @@ structured output.
 
 ## Features
 
-- Malli schema → Gemini/Vertex-flavored JSON Schema (uppercased `:type`)
-- `com.stuartsierra/component` lifecycle wrapping `com.google.genai.Client`
-- `IGenAI` protocol with a single `generate-content` method
+- Malli schema → Gemini/Vertex-flavored JSON Schema
+- `com.stuartsierra/component` lifecycle wrapping `com.google.genai.Client` for easy integration
+- Supports;
+  - one shot structured output, via `vortex.client/generate-content`
+  - multi-turn chat with `vortex.client/send-message`
 
 ## Usage
 
@@ -17,14 +19,13 @@ structured output.
 
 (def client
   (component/start
-    (vortex/create
-      {:project "my-gcp-project"
-       :location "us-central1"
-       :model "gemini-2.0-flash"
-       :system-instruction "Extract structured data from the input."
-       :response-schema [:map
-                         [:name :string]
-                         [:age :int]]})))
+   (vortex/create {:project "my-gcp-project"
+                   :location "us-central1"
+                   :model "gemini-2.0-flash"
+                   :system-instruction "Extract structured data from the input."
+                   :response-schema [:map
+                                     [:name :string]
+                                     [:age :int]]})))
 
 (vortex/generate-content client "John is 42 years old.")
 ;; => {:name "John" :age 42}
@@ -32,8 +33,61 @@ structured output.
 (component/stop client)
 ```
 
-`:response-schema` accepts either a raw Malli schema vector or an
-already-compiled `malli.core/schema` value.
+`:response-schema` accepts either a raw Malli schema vector or a
+pre-compiled `malli.core/schema` value.
+
+## Chat
+
+`send-message` drives a multi-turn conversation. Unlike `generate-content`,
+you create the client **without** a `:response-schema` — chat replies are
+plain text, not structured JSON.
+
+Each call takes a map of:
+
+- `:message` - the user's message for this turn (required)
+- `:history` - the conversation so far, as returned by the previous call
+  (pass `[]` on the first turn)
+- `:context` - private context injected at the start of a fresh
+  conversation, only used when `:history` is empty
+
+The call returns `{:reply <string> :history <vec>}`. Feed the returned
+`:history` back into the next `send-message` to continue the conversation.
+
+```clojure
+(def chat
+  (component/start
+    (vortex/create {:project "my-gcp-project"
+       :location "us-central1"
+       :model "gemini-2.5-flash"
+       :system-instruction "Help the user answer questions about the product"})))
+
+(vortex/send-message chat {:context "## Product info: size 20cm by 20cm, color black"
+                           :history []
+                           :message "what is the size of this product?"})
+;; => {:reply "The size of this product is 20cm by 20cm."
+;;     :history
+;;     [{:role "user"
+;;       :text "<PRIVATE CONTEXT>\n# Context for this conversation\n\n## Product info: size 20cm by 20cm, color black\n\n</PRIVATE CONTEXT>"}
+;;      {:role "user" :text "what is the size of this product?"}
+;;      {:role "model" :text "The size of this product is 20cm by 20cm."}]}
+
+;; continue the conversation by passing the returned :history back in
+(vortex/send-message chat {:history (:history *1)
+                           :message "and what is the color?"})
+;; => {:reply "The color of this product is black."
+;;     :history
+;;     [{:role "user"
+;;       :text "<PRIVATE CONTEXT>\n# Context for this conversation\n\n## Product info: size 20cm by 20cm, color black\n\n</PRIVATE CONTEXT>"}
+;;      {:role "user" :text "what is the size of this product?"}
+;;      {:role "model" :text "The size of this product is 20cm by 20cm."}
+;;      {:role "user" :text "and what is the color?"}
+;;      {:role "model" :text "The color of this product is black."}]}
+```
+
+The `:context` is wrapped in `<PRIVATE CONTEXT>` markers and inserted as the
+first `user` turn of a new conversation; subsequent turns reuse the history
+verbatim, so the context is sent once rather than re-prepended to every
+message.
 
 ## Schema transform
 
@@ -54,14 +108,8 @@ callers that want to build `GenerateContentConfig` directly:
 Pass `:all-required? true` to strip `:optional` markers before the
 transform.
 
-## Tasks
+# Roadmap
 
-Tasks are managed with [mise](https://mise.jdx.dev/):
-
-```
-mise run test                           # run the test suite
-mise run jar                            # build a jar
-mise run install                        # install locally
-mise run release                        # clean + jar + publish to Clojars
-SNAPSHOT=foo mise run release           # snapshot release
-```
+- [ ] tool calls
+- [ ] grounding https://ai.google.dev/gemini-api/docs/google-search
+- [ ] drop GenAI SDK and use REST API directly?
