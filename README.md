@@ -89,6 +89,15 @@ first `user` turn of a new conversation; subsequent turns reuse the history
 verbatim, so the context is sent once rather than re-prepended to every
 message.
 
+### Usage without Component
+
+use `vortex.client` namespace and it's functions to:
+
+- construct the client via `->client`
+- content generation configuration (`->config`) to create config
+
+and use `generate-content*` or `send-message*` directly.
+
 ## Schema transform
 
 `vortex.schema/->json-schema-for-inference` is exposed on its own for
