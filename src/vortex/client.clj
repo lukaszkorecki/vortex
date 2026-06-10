@@ -5,7 +5,8 @@
    [vortex.schema :as schema])
   (:import
    [com.google.genai Client Models]
-   [com.google.genai.types Content AutoValue_GenerateContentResponse GenerateContentConfig GenerateContentResponse]))
+   [com.google.genai.types Content AutoValue_GenerateContentResponse GenerateContentConfig GenerateContentResponse]
+   [java.util ArrayList Collection]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,7 +39,7 @@
   "Convert a persisted history vec into a java.util.List<Content>."
   ^java.util.List
   [history]
-  (java.util.ArrayList. (mapv ->content history)))
+  (ArrayList. ^Collection (mapv ->content history)))
 
 (defn send-message* [^Client client {:keys [model config
                                             ;;provided
@@ -56,12 +57,11 @@
                                           ^java.util.ArrayList contents
                                           ^GenerateContentConfig config)
         reply (GenerateContentResponse/.text response)]
-
     {:reply reply
      :history (conj all-history {:role "model" :text reply})}))
 
 (defprotocol IGenAI
-  (generate-content [client input]
+  (generate-content [client {:keys [input]}]
     "One-shot generate content using the client, with pre-baked system instructions and schema")
   ;; TBC/TBD
   (send-message [client {:keys [message history context]}]
@@ -102,7 +102,26 @@
                            :message message
                            :history history})))
 
-(defn create [{:keys [project location model system-instruction response-schema]}]
+(defn create
+  "Create a GenAI (aka Vertex aka Gemini on Vertex) client.
+  Required opts:
+  - `project` - your GCP project
+  - `model` - model name, as per API docs e.g `gemini-2.5-flash`
+
+  Optional:
+  - `system-instruction` - system instructions for the
+  model. Set global instructions for all uses of the model
+  - `response-schema` - forces the model to reply using structured data,
+  uses Malli schema for definition
+
+   NOTE: response schema will force
+  model to reply using JSON, this is required for `generate-content`
+  call (one-shot reply with structured data) but you don't want it for
+  `send-message` (an ogoing chat, where usually you want text
+  replies).
+  NOTE: chat doesn't support tool calling or other
+  grounding features yet."
+  [{:keys [project location model system-instruction response-schema]}]
   (let [resp-schema (when response-schema
                       (if (schema/schema? response-schema)
                         (schema/->json-schema-for-inference response-schema)
