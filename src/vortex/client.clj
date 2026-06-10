@@ -5,19 +5,25 @@
    [vortex.schema :as schema])
   (:import
    [com.google.genai Client Models]
-   [com.google.genai.types Content AutoValue_GenerateContentResponse GenerateContentConfig GenerateContentResponse]
+   [com.google.genai.types Content GenerateContentConfig GenerateContentResponse]
    [java.util ArrayList Collection]))
 
 (set! *warn-on-reflection* true)
 
-(defn ->config [{:keys [system-instruction response-schema]}]
-  (GenerateContentConfig/fromJson
-   ^String (json/generate-string (cond-> {:temperature 0.0}
-                                   response-schema (assoc :responseSchema response-schema
-                                                          :responseMimeType "application/json")
-                                   system-instruction (assoc
-                                                       :systemInstruction {:role "user"
-                                                                           :parts [{:text system-instruction}]})))))
+(defn ->config
+  "Create config for content generation. Options:
+  - `:system-instruction` - string with default system instructions
+    attached to the client for every requst
+  - `:response-schema` - JSON schema for the response, intended
+  for single-shot mode. See `vortex.schema` for converting Malli schemas to
+  GenAI's format"
+  [{:keys [system-instruction response-schema]}]
+  (let [config (cond-> {:temperature 0.0} ;; TODO: make temperature tweakable?
+                 response-schema (assoc :responseSchema response-schema
+                                        :responseMimeType "application/json")
+                 system-instruction (assoc :systemInstruction {:role "user"
+                                                               :parts [{:text system-instruction}]}))]
+    (GenerateContentConfig/fromJson ^String (json/generate-string config))))
 
 (defn ->client [{:keys [project location]}]
   (.build (doto (Client/builder)
@@ -25,12 +31,36 @@
             (.location location)
             (.vertexAI true))))
 
+;; --- SDK boundary -----------------------------------------------------------
+;; These two fns are the only place we touch `Models/.generateContent`. They
+;; exist so tests can `with-redefs` them to intercept the request that would be
+;; sent and stub the model's response (see `vortex.client-test`). Keep them
+;; dumb: no input construction or output processing belongs here.
+
+(defn invoke-generate
+  "One-shot SDK call. Sends `input` (a String) and returns the raw
+  `GenerateContentResponse`."
+  ^GenerateContentResponse
+  [^Client client {:keys [^String model
+                          ^String input
+                          ^GenerateContentConfig config]}]
+  (Models/.generateContent (.models client) model input config))
+
+(defn invoke-chat
+  "Multi-turn SDK call. Sends `contents` (a List<Content>) and returns the raw
+  `GenerateContentResponse`."
+  ^GenerateContentResponse
+  [^Client client {:keys [^String model
+                          ^java.util.List contents
+                          ^GenerateContentConfig config]}]
+  (Models/.generateContent (.models client) model contents config))
+
 (defn generate-content* [^Client client {:keys [model config input]}]
-  (let [m (.models client)
-        response (Models/.generateContent m ^String model ^String input ^GenerateContentConfig config)
-        response-str (AutoValue_GenerateContentResponse/.text response)]
+  (let [response (invoke-generate client {:model model :input input :config config})
+        response-str (GenerateContentResponse/.text response)]
     (when response-str
-      (json/parse-string response-str true))))
+      (->> (json/parse-string response-str true)
+           (reduce-kv (fn [acc k v] (if v (assoc acc k v) acc)) {})))))
 
 (defn ->content ^Content [{:keys [role text]}]
   (Content/fromJson (json/generate-string {:role role :parts [{:text text}]})))
@@ -44,8 +74,7 @@
 (defn send-message* [^Client client {:keys [model config
                                             ;;provided
                                             context history message]}]
-  (let [m (.models client)
-        all-history (conj (if (seq history)
+  (let [all-history (conj (if (seq history)
                             ;; we have history - pass it around
                             (vec history)
                             ;; blank history, include context first, then first message
@@ -53,9 +82,7 @@
                               :text (format "<PRIVATE CONTEXT>\n# Context for this conversation\n\n%s\n\n</PRIVATE CONTEXT>" context)}])
                           {:role "user" :text message})
         contents (history->contents all-history)
-        response (Models/.generateContent m ^String model
-                                          ^java.util.ArrayList contents
-                                          ^GenerateContentConfig config)
+        response (invoke-chat client {:model model :contents contents :config config})
         reply (GenerateContentResponse/.text response)]
     {:reply reply
      :history (conj all-history {:role "model" :text reply})}))
@@ -89,10 +116,9 @@
 
   IGenAI
   (generate-content [_this input]
-    (let [result (generate-content* client {:config gen-config
-                                            :model model
-                                            :input input})]
-      (reduce-kv (fn [acc k v] (if v (assoc acc k v) acc)) {} result)))
+    (generate-content* client {:config gen-config
+                               :model model
+                               :input input}))
 
   (send-message [_this {:keys [message history context]}]
     (send-message* client {:config gen-config
