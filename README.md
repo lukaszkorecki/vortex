@@ -7,7 +7,7 @@ structured output.
 
 - Malli schema → Gemini/Vertex-flavored JSON Schema
 - `com.stuartsierra/component` lifecycle wrapping `com.google.genai.Client` for easy integration
-- Supports;
+- Supports:
   - one shot structured output, via `vortex.client/generate-content`
   - multi-turn chat with `vortex.client/send-message`
 
@@ -27,7 +27,7 @@ structured output.
                                      [:name :string]
                                      [:age :int]]})))
 
-(vortex/generate-content client "John is 42 years old.")
+(vortex/generate-content client {:input "John is 42 years old."})
 ;; => {:name "John" :age 42}
 
 (component/stop client)
@@ -91,7 +91,7 @@ message.
 
 ### Usage without Component
 
-use `vortex.client` namespace and it's functions to:
+use `vortex.client` namespace and its functions to:
 
 - construct the client via `->client`
 - content generation configuration (`->config`) to create config
