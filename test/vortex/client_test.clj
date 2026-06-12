@@ -150,6 +150,22 @@
                                 {:role "model" :text "The color is black."}])
                  (:history result))))))))
 
+(deftest no-system-prompt-no-context-test
+  (let [sent (atom nil)]
+    (with-redefs [client/invoke-chat (fn [_ {:keys [model config contents]}]
+                                       (reset! sent {:model model
+                                                     :config config
+                                                     :contents (mapv content->map contents)})
+                                       (stub-response "hello"))]
+      (let [_result (client/send-message* :fake-client
+                                          {:model "gemini-2.5-flash"
+                                           :config :the-gen-config
+                                           :history []
+                                           :message "hello"})]
+
+        (is (= {:config :the-gen-config :contents [{:role "user" :text "hello"}] :model "gemini-2.5-flash"}
+               @sent))))))
+
 ;; --- protocol dispatch ------------------------------------------------------
 ;;
 ;; The record's IGenAI methods are thin wiring: they pull `gen-config`/`model`/
@@ -166,7 +182,7 @@
       (with-redefs [client/generate-content* (fn [c opts]
                                                (reset! captured {:client c :opts opts})
                                                :generated)]
-        (is (= :generated (client/generate-content client "John is 42 years old.")))
+        (is (= :generated (client/generate-content client {:input "John is 42 years old."})))
         (is (= {:client :the-client
                 :opts {:config :the-gen-config
                        :model "gemini-2.5-flash"

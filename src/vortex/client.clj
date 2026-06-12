@@ -60,27 +60,40 @@
         response-str (GenerateContentResponse/.text response)]
     (when response-str
       (->> (json/parse-string response-str true)
-           (reduce-kv (fn [acc k v] (if v (assoc acc k v) acc)) {})))))
+           (reduce-kv (fn [acc k v]
+                        (if (some? v)
+                          (assoc acc k v)
+                          acc))
+                      {})))))
 
 (defn ->content ^Content [{:keys [role text]}]
-  (Content/fromJson (json/generate-string {:role role :parts [{:text text}]})))
+  (when (and role text)
+    (Content/fromJson (json/generate-string {:role role :parts [{:text text}]}))))
 
 (defn history->contents
   "Convert a persisted history vec into a java.util.List<Content>."
   ^java.util.List
   [history]
-  (ArrayList. ^Collection (mapv ->content history)))
+  (ArrayList. ^Collection (filterv some? (mapv ->content history))))
+
+(defn context->message [context]
+  (when context
+    {:role "user"
+     :text (format "<PRIVATE CONTEXT>\n# Context for this conversation\n\n%s\n\n</PRIVATE CONTEXT>" context)}))
 
 (defn send-message* [^Client client {:keys [model config
                                             ;;provided
                                             context history message]}]
-  (let [all-history (conj (if (seq history)
-                            ;; we have history - pass it around
-                            (vec history)
-                            ;; blank history, include context first, then first message
-                            [{:role "user"
-                              :text (format "<PRIVATE CONTEXT>\n# Context for this conversation\n\n%s\n\n</PRIVATE CONTEXT>" context)}])
-                          {:role "user" :text message})
+  (let [history-so-far (->> (if (seq history)
+                              ;; we have history - pass it around
+                              history
+                              ;; blank history, include context first, if provided
+                              [(context->message context)])
+                            ;; ensure we don't have `nil`s
+                            ;; NOTE: that filterv is important
+                            ;; because we want conj to append user message
+                            (filterv some?))
+        all-history (conj history-so-far {:role "user" :text message})
         contents (history->contents all-history)
         response (invoke-chat client {:model model :contents contents :config config})
         reply (GenerateContentResponse/.text response)]
@@ -115,7 +128,7 @@
       this))
 
   IGenAI
-  (generate-content [_this input]
+  (generate-content [_this {:keys [input]}]
     (generate-content* client {:config gen-config
                                :model model
                                :input input}))
