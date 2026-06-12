@@ -4,7 +4,11 @@
 
 (def lib 'org.clojars.lukaszkorecki/vortex)
 (def version-stable (format "1.0.0.%s" (b/git-count-revs nil)))
-(defn version-snapshot [suffix] (format "%s-SNAPSHOT-%s" version-stable suffix))
+
+(defn get-version-string [snapshot]
+  (if snapshot
+    (str version-stable "-SNAPSHOT")
+    version-stable))
 
 (def class-dir "target/classes")
 (defn jar-file [version] (format "target/%s-%s.jar" (name lib) version))
@@ -43,33 +47,27 @@
 
 (defn jar
   [{:keys [snapshot] :as _args}]
-  (let [{:keys [jar-file] :as opts} (jar-opts {:version (if snapshot
-                                                          (version-snapshot snapshot)
-                                                          version-stable)})]
+  (let [{:keys [jar-file] :as opts} (jar-opts {:version (get-version-string snapshot)})]
     (println (format "Cleaning '%s'..." target))
     (b/delete {:path "target"})
     (println "Writing 'pom.xml'...")
     (b/write-pom opts)
     (println (format "Copying source files to '%s'..." class-dir))
-    (b/copy-dir {:src-dirs ["src"] :target-dir class-dir})
+    (b/copy-dir {:src-dirs ["src" "resources"] :target-dir class-dir})
     (println (format "Building JAR to '%s'..." jar-file))
     (b/jar opts)
     (println "Finished.")))
 
 (defn install
   [{:keys [snapshot]}]
-  (let [{:keys [jar-file] :as opts} (jar-opts {:version (if snapshot
-                                                          (version-snapshot snapshot)
-                                                          version-stable)})]
+  (let [{:keys [jar-file] :as opts} (jar-opts {:version (get-version-string snapshot)})]
     (dd/deploy {:installer :local
                 :artifact (b/resolve-path jar-file)
                 :pom-file (b/pom-path (select-keys opts [:lib :class-dir]))})))
 
 (defn publish
   [{:keys [snapshot]}]
-  (let [{:keys [jar-file] :as opts} (jar-opts {:version (if snapshot
-                                                          (version-snapshot snapshot)
-                                                          version-stable)})]
+  (let [{:keys [jar-file] :as opts} (jar-opts {:version (get-version-string snapshot)})]
     (dd/deploy {:installer :remote
                 :artifact (b/resolve-path jar-file)
                 :pom-file (b/pom-path (select-keys opts [:lib :class-dir]))})))
