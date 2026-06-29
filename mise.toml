@@ -16,11 +16,11 @@ run = "clojure -T:build clean"
 
 [tasks.jar]
 description = "Build jar (set SNAPSHOT=true for snapshot build)"
-run = "clojure -T:build jar ${SNAPSHOT:+:snapshot $SNAPSHOT}"
+run = "clojure -T:build jar :snapshot ${SNAPSHOT:-false}"
 
 [tasks.publish]
 description = "Publish jar (set SNAPSHOT=true for snapshot build)"
-run = "clojure -T:build publish ${SNAPSHOT:+:snapshot $SNAPSHOT}"
+run = "clojure -T:build publish :snapshot ${SNAPSHOT:-false}"
 depends = ["clean", "jar"]
 
 [tasks.release]
@@ -29,5 +29,5 @@ depends = ["publish"]
 
 [tasks.install]
 description = "Install jar locally (set SNAPSHOT=true for snapshot build)"
-run = "clojure -T:build install ${SNAPSHOT:+:snapshot $SNAPSHOT}"
+run = "clojure -T:build install :snapshot ${SNAPSHOT:-false}"
 depends = ["jar"]

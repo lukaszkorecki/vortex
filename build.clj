@@ -5,8 +5,16 @@
 (def lib 'org.clojars.lukaszkorecki/vortex)
 (def version-stable (format "1.0.0.%s" (b/git-count-revs nil)))
 
+(defn- snapshot?
+  "Coerce the :snapshot tool arg to a boolean. Accepts an actual boolean
+  (from EDN tool-arg parsing) or a string (e.g. \"true\" from an env var)."
+  [snapshot]
+  (if (string? snapshot)
+    (parse-boolean snapshot)
+    (boolean snapshot)))
+
 (defn get-version-string [snapshot]
-  (if snapshot
+  (if (snapshot? snapshot)
     (str version-stable "-SNAPSHOT")
     version-stable))
 
