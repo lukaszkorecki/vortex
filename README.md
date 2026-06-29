@@ -38,9 +38,9 @@ pre-compiled `malli.core/schema` value.
 
 ## Chat
 
-`send-message` drives a multi-turn conversation. Unlike `generate-content`,
-you create the client **without** a `:response-schema` — chat replies are
-plain text, not structured JSON.
+`send-message` drives a multi-turn conversation. By default chat replies are
+plain text, but you can also create the client with a `:response-schema` to
+get structured replies on every turn (see the quirk below).
 
 Each call takes a map of:
 
@@ -88,6 +88,50 @@ The `:context` is wrapped in `<PRIVATE CONTEXT>` markers and inserted as the
 first `user` turn of a new conversation; subsequent turns reuse the history
 verbatim, so the context is sent once rather than re-prepended to every
 message.
+
+### Structured chat replies (and a `:text` quirk)
+
+You can create a chat client with a `:response-schema`, just like
+`generate-content`, and every reply will be coerced to that schema:
+
+```clojure
+(def chat
+  (component/start
+    (vortex/create {:project "my-gcp-project"
+                    :location "us-central1"
+                    :model "gemini-3.5-flash"
+                    :system-instruction "Extract structured data from the input."
+                    :response-schema [:map
+                                      [:message :string]
+                                      [:name :string]
+                                      [:age :int]]})))
+
+(vortex/send-message chat {:message "hi how are you? I'm tom"})
+;; => {:reply {:message "hi how are you?" :name "tom" :age 30}
+;;     :raw-reply "{\"message\":\"hi how are you?\",\"name\":\"tom\",\"age\":30}"
+;;     :finish-reason "STOP"
+;;     :function-calls []
+;;     :history
+;;     [{:role "user"  :text "hi how are you? I'm tom"}
+;;      {:role "model" :text {:message "hi how are you?" :name "tom" :age 30}}]}
+```
+
+> [!IMPORTANT]
+> **Quirk: with a schema, history `:text` is an object, not a string.**
+>
+> When a chat client has a `:response-schema`, `send-message` parses each
+> model reply into the schema. That parsed object is stored back into the
+> `:history` under the `:text` key of the `model` turn — so for those turns
+> `:text` holds the structured map, **not** a string. This only happens for
+> chat (`send-message`) when a schema is configured; plain-text chat keeps
+> `:text` as a string as shown above.
+>
+> This is a limitation of how the GenAI Java SDK forces all content parts
+> through a `text` field regardless of whether they're actually text. It will
+> go away once we drop the SDK in favor of the REST API directly (see the
+> roadmap). Until then, when round-tripping history be aware that `:text` may
+> be either a string or a map; the client already handles re-encoding a map
+> `:text` back into a content part on the next turn.
 
 ### Usage without Component
 

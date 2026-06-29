@@ -1,3 +1,5 @@
+;; FIXME: migrate to using API directly, and get rid of Java SDK for GenAI
+;; use only oauth-client lib from Google to streamline authentication for dynamic creds
 (ns vortex.client
   (:require
    [cheshire.core :as json]
@@ -55,6 +57,8 @@
                           ^GenerateContentConfig config]}]
   (Models/.generateContent (.models client) model contents config))
 
+
+
 (defn generate-content* [^Client client {:keys [model config input]}]
   (let [response (invoke-generate client {:model model :input input :config config})
         response-str (GenerateContentResponse/.text response)]
@@ -66,9 +70,14 @@
                           acc))
                       {})))))
 
+;; FIXME: content handling is really weird because Java API forces using 'text' field for storing response parts
+;; but they don't have to be text content... because of structured output schema.
 (defn ->content ^Content [{:keys [role text]}]
   (when (and role text)
-    (Content/fromJson (json/generate-string {:role role :parts [{:text text}]}))))
+    (Content/fromJson (json/generate-string {:role role
+                                             :parts [{:text (if (string? text)
+                                                              text
+                                                              (json/generate-string text))}]}))))
 
 (defn history->contents
   "Convert a persisted history vec into a java.util.List<Content>."
@@ -82,8 +91,10 @@
      :text (format "<PRIVATE CONTEXT>\n# Context for this conversation\n\n%s\n\n</PRIVATE CONTEXT>" context)}))
 
 (defn send-message* [^Client client {:keys [model config
-                                            ;;provided
-                                            context history message]}]
+                                            ;; provided
+                                            context history message
+                                            ;; output handling
+                                            structured-responses?]}]
   (let [history-so-far (->> (if (seq history)
                               ;; we have history - pass it around
                               history
@@ -96,8 +107,17 @@
         all-history (conj history-so-far {:role "user" :text message})
         contents (history->contents all-history)
         response (invoke-chat client {:model model :contents contents :config config})
-        reply (GenerateContentResponse/.text response)]
+        raw-reply (GenerateContentResponse/.text response)
+        reply (if structured-responses?
+                (json/parse-string raw-reply true)
+                raw-reply)
+        finish-reason (str (GenerateContentResponse/.finishReason response))
+        function-calls (GenerateContentResponse/.functionCalls response)]
+
     {:reply reply
+     :raw-reply raw-reply
+     :finish-reason finish-reason
+     :function-calls (vec function-calls)
      :history (conj all-history {:role "model" :text reply})}))
 
 (defprotocol IGenAI
@@ -111,7 +131,8 @@
                         project location system-instruction response-schema model
                         ;; internal state
                         client
-                        gen-config]
+                        gen-config
+                        structured-response?]
   component/Lifecycle
   (start [this]
     (if client
@@ -139,7 +160,8 @@
                            ;; provided
                            :context context
                            :message message
-                           :history history})))
+                           :history history
+                           :structured-responses? true})))
 
 (defn create
   "Create a GenAI (aka Vertex aka Gemini on Vertex) client.
@@ -153,11 +175,13 @@
   - `response-schema` - forces the model to reply using structured data,
   uses Malli schema for definition
 
-   NOTE: response schema will force
-  model to reply using JSON, this is required for `generate-content`
-  call (one-shot reply with structured data) but you don't want it for
-  `send-message` (an ogoing chat, where usually you want text
-  replies).
+   NOTE: response schema forces the model to reply using JSON. This is
+  required for `generate-content` (one-shot structured data) and also works
+  for `send-message` (structured replies on every chat turn). When a schema
+  is set, `send-message` parses each reply and stores the resulting map under
+  the `:text` key of the `model` history turn - so for chat-with-schema
+  `:text` is an object, not a string. See the README for details. Omit
+  `response-schema` if you want plain-text chat replies.
   NOTE: chat doesn't support tool calling or other
   grounding features yet."
   [{:keys [project location model system-instruction response-schema]}]
@@ -169,4 +193,5 @@
                        :location location
                        :model model
                        :system-instruction system-instruction
-                       :response-schema resp-schema})))
+                       :response-schema resp-schema
+                       :structured-responses? (boolean resp-schema)})))

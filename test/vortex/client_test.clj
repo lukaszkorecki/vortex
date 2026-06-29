@@ -116,6 +116,9 @@
           (is (= :the-gen-config (:config @sent)))
           ;; the returned history is what was sent + the model reply
           (is (= {:reply "The size is 20cm by 20cm."
+                  :raw-reply "The size is 20cm by 20cm."
+                  :finish-reason "FINISH_REASON_UNSPECIFIED"
+                  :function-calls []
                   :history [{:role "user"
                              :text (str "<PRIVATE CONTEXT>\n# Context for this conversation\n\n"
                                         "## Product info: size 20cm by 20cm\n\n</PRIVATE CONTEXT>")}
@@ -198,6 +201,7 @@
                                                   :context "ctx"})))
         (is (= {:client :the-client
                 :opts {:config :the-gen-config
+                       :structured-responses? true
                        :model "gemini-2.5-flash"
                        :context "ctx"
                        :message "and the color?"
