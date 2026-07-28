@@ -15,7 +15,7 @@
 (defn ->config
   "Create config for content generation. Options:
   - `:system-instruction` - string with default system instructions
-    attached to the client for every requst
+    attached to the client in every request/conversation
   - `:response-schema` - JSON schema for the response, intended
   for single-shot mode. See `vortex.schema` for converting Malli schemas to
   GenAI's format"
