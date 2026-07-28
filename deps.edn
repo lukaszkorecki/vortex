@@ -1,16 +1,8 @@
 {:paths ["src"]
- :deps {org.clojure/clojure {:mvn/version "1.12.4"}
-
-        ;; Google GenAI / Vertex SDK
-        com.google.genai/google-genai {:mvn/version "1.40.0"}
-
-        ;; schema
-        metosin/malli {:mvn/version "0.20.0"}
-
-        ;; data formats
-        cheshire/cheshire {:mvn/version "6.1.0"}
-
-        ;; system building
+ :deps {org.clojure/clojure {:mvn/version "1.12.5"}
+        com.google.genai/google-genai {:mvn/version "1.57.0"}
+        metosin/malli {:mvn/version "0.20.1"}
+        cheshire/cheshire {:mvn/version "6.2.0"}
         com.stuartsierra/component {:mvn/version "1.2.0"}}
 
  :aliases {:test {:extra-paths ["test"]
@@ -18,6 +10,6 @@
                   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                                nubank/matcher-combinators {:mvn/version "3.10.0"}}}
 
-           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.13"}
-                          slipset/deps-deploy {:mvn/version "0.2.2"}}
+           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}
+                          slipset/deps-deploy {:mvn/version "0.2.5"}}
                    :ns-default build}}}
